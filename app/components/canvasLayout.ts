@@ -90,15 +90,18 @@ export function getCharacterLayout({
   const compactHeroHeight = Math.min(height * 1.48, width * 2.95);
   const desktopHeroHeight = Math.min(height * 1.72, width * 1.34);
   const heroHeight = mix(desktopHeroHeight, compactHeroHeight, compactBlend);
-  const compactNextHeight = Math.min(height * 0.76, Math.max(width * 1.05, 432));
+  const mobileNextHeight =
+    width < 375 ? width * (432 / 375) : Math.max(width * 1.05, 432);
+  const compactNextHeight = Math.min(height * 0.76, mobileNextHeight);
   const desktopNextHeight = Math.min(height * 0.88, width * 0.86);
   const nextHeight = mix(desktopNextHeight, compactNextHeight, compactBlend);
   const heroY = mix(HERO_HUMAN_Y.desktop, HERO_HUMAN_Y.compact, compactBlend);
   const nextY = mix(NEXT_HUMAN_Y.desktop, NEXT_HUMAN_Y.compact, compactBlend);
+  const nextXOffset = mix(0.04, 0, compactBlend);
 
   return {
     height: mix(heroHeight, nextHeight, progress),
-    x: width / 2,
+    x: width * (0.5 - nextXOffset * progress),
     y: height * mix(heroY, nextY, progress),
   };
 }

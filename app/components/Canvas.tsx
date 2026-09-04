@@ -8,6 +8,7 @@ import { shouldRunCanvas } from "./canvasRenderPolicy";
 import { resizeCanvasSurface } from "./canvasSurface";
 
 const BUBBLE_LOOP_MS = 7000;
+const FRAME_INTERVAL_MS = 1000 / 60;
 const BUBBLE_TRACKS = [
   { x: 0, phase: 0 },
   { x: 0.5, phase: 0.34 },
@@ -82,6 +83,7 @@ type CanvasProps = {
 };
 
 export function Canvas({ onSectionChange, onReady }: CanvasProps) {
+  const rootRef = useRef<HTMLElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sectionRef = useRef<SceneSection>("hero");
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -155,8 +157,9 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
-    const context = canvas.getContext("2d");
+    const root = rootRef.current;
+    if (!canvas || !root) return;
+    const context = canvas.getContext("2d", { alpha: false });
     if (!context) return;
 
     const human = new Image();
@@ -208,31 +211,23 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
       context.fillRect(0, 0, width, height);
 
       if (bubbles.naturalWidth && stateRef.current.nextAlpha > 0.001) {
+        const bubbleWidth = compact
+          ? Math.max(width * 1.05, Math.min(height * 0.58, 620))
+          : Math.max(680, Math.min(width * 0.5, 980));
+        const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
+
         context.save();
         context.globalAlpha = stateRef.current.nextAlpha;
-
-        if (compact) {
-          const bubbleWidth = Math.max(width * 1.55, height * 0.78);
-          const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
-          const bubbleX = (width - bubbleWidth) / 2;
-          const bubbleY = -((elapsed / BUBBLE_LOOP_MS) * bubbleHeight) % bubbleHeight;
+        BUBBLE_TRACKS.forEach((track) => {
+          const bubbleX = width * track.x - bubbleWidth / 2;
+          const phaseOffset = track.phase * bubbleHeight;
+          const bubbleY = -(
+            ((elapsed / BUBBLE_LOOP_MS) * bubbleHeight + phaseOffset) %
+            bubbleHeight
+          );
           context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
           context.drawImage(bubbles, bubbleX, bubbleY + bubbleHeight, bubbleWidth, bubbleHeight);
-        } else {
-          const bubbleWidth = Math.max(680, Math.min(width * 0.5, 980));
-          const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
-          BUBBLE_TRACKS.forEach((track) => {
-            const bubbleX = width * track.x - bubbleWidth / 2;
-            const phaseOffset = track.phase * bubbleHeight;
-            const bubbleY = -(
-              ((elapsed / BUBBLE_LOOP_MS) * bubbleHeight + phaseOffset) %
-              bubbleHeight
-            );
-            context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
-            context.drawImage(bubbles, bubbleX, bubbleY + bubbleHeight, bubbleWidth, bubbleHeight);
-          });
-        }
-
+        });
         context.restore();
       }
 
@@ -273,26 +268,56 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
       drawCrowd("front", elapsed);
     };
 
+    let lastDrawAt = 0;
     const draw = (elapsed: number) => {
+      frame = 0;
       if (!shouldRunCanvas({ documentHidden: document.hidden, revealed: true })) return;
+      if (window.innerWidth !== width || window.innerHeight !== height) {
+        resize();
+      }
+      if (elapsed - lastDrawAt < FRAME_INTERVAL_MS - 1) {
+        frame = window.requestAnimationFrame(draw);
+        return;
+      }
+      lastDrawAt = elapsed;
       paint(elapsed);
       frame = window.requestAnimationFrame(draw);
     };
 
+    const startDrawing = () => {
+      if (!shouldRunCanvas({ documentHidden: document.hidden, revealed: true }) || frame) {
+        return;
+      }
+      lastDrawAt = 0;
+      frame = window.requestAnimationFrame(draw);
+    };
+
     const resize = () => {
-      width = window.innerWidth;
-      height = window.innerHeight;
-      compact = width < 768;
-      dpr = Math.min(window.devicePixelRatio || 1, compact ? 1.35 : 1.75);
+      const nextWidth = window.innerWidth;
+      const nextHeight = window.innerHeight;
+      const nextCompact = nextWidth < 768;
+      const nextDpr = Math.min(window.devicePixelRatio || 1, nextCompact ? 1.35 : 1.75);
+      if (
+        width === nextWidth &&
+        height === nextHeight &&
+        dpr === nextDpr &&
+        compact === nextCompact
+      ) {
+        return;
+      }
+      width = nextWidth;
+      height = nextHeight;
+      compact = nextCompact;
+      dpr = nextDpr;
       crowd = buildCrowd(width, height);
       resizeCanvasSurface(canvas, { width, height, dpr }, () => paint(performance.now()));
     };
 
+    let onReadyCalled = false;
     const startWhenReady = () => {
       readyImages += 1;
-      if (readyImages !== 4) return;
-      resize();
-      frame = window.requestAnimationFrame(draw);
+      if (readyImages !== 4 || onReadyCalled) return;
+      onReadyCalled = true;
       onReady?.();
     };
 
@@ -302,9 +327,7 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
         frame = 0;
         return;
       }
-      if (readyImages === 4 && !frame) {
-        frame = window.requestAnimationFrame(draw);
-      }
+      startDrawing();
     };
 
     human.onload = startWhenReady;
@@ -315,29 +338,35 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
     crewImage.src = "/assets/crew.webp";
     bubbles.src = "/assets/bubbles.webp";
     logo.src = "/assets/logo.webp";
-    window.addEventListener("resize", resize);
-    document.addEventListener("visibilitychange", onVisibilityChange);
+
     resize();
+    const observer = new ResizeObserver(resize);
+    observer.observe(root);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    startDrawing();
 
     return () => {
       window.cancelAnimationFrame(frame);
-      window.removeEventListener("resize", resize);
+      frame = 0;
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      observer.disconnect();
     };
   }, [onReady]);
 
   return (
-    <main id="hero" className="relative h-svh min-h-0 bg-white">
-      <canvas
-        ref={canvasRef}
-        className="block h-full w-full touch-pan-y"
-        role="img"
-        aria-label="A lively crowd of Fluffy Hugs characters"
-      />
+    <main ref={rootRef} id="hero" className="relative h-svh min-h-0 bg-white">
+      <div className="relative isolate h-svh w-full overflow-hidden [contain:strict]">
+        <canvas
+          ref={canvasRef}
+          className="block h-full w-full touch-pan-y"
+          role="img"
+          aria-label="A lively crowd of Fluffy Hugs characters"
+        />
+      </div>
       <section
         id="next-section"
         className="pointer-events-none absolute inset-0"
-        aria-label="Float together"
+        aria-label="Floating Human"
       >
         <h2 className="sr-only">Fluffy Hugs float together</h2>
       </section>
