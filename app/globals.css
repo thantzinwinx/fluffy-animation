@@ -3,50 +3,37 @@
 :root {
   --navy: #0b3f96;
   --coral: #ffbdac;
-  --coral-light: #ffd8cd;
-  --blue: #8ca9ed;
-  --blue-light: #c0e3fb;
   --line: rgba(11, 63, 150, 0.22);
 }
 
 @theme inline {
   --color-navy: var(--navy);
   --color-coral: var(--coral);
-  --color-coral-light: var(--coral-light);
-  --color-blue: var(--blue);
-  --color-blue-light: var(--blue-light);
-
-  --font-display: var(--font-display);
-  --font-body: var(--font-body);
-
-  /* manual 3-breakpoint system: mobile (default) / tablet / desktop */
-  --breakpoint-tablet: 48rem; /* 768px */
-  --breakpoint-desktop: 80rem; /* 1280px */
 }
 
 html,
 body {
   height: 100%;
-  overflow: hidden;
-  overscroll-behavior: none;
 }
 
 body {
-  background: #fff;
-  color: var(--navy);
   margin: 0;
   min-width: 320px;
-}
-
-body[data-loading="true"] {
-  overflow: hidden;
-}
-
-::selection {
-  background: var(--coral);
+  background: #fff;
   color: var(--navy);
 }
 
-a {
-  color: inherit;
+@keyframes loader-breathe {
+  to {
+    transform: translateY(-8px) scale(1.02);
+  }
+}
+
+@keyframes loader-progress {
+  from {
+    transform: translateX(-105%);
+  }
+  to {
+    transform: translateX(215%);
+  }
 }
