@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Loader } from "./components/Loader";
 import { SiteChrome } from "./components/SiteChrome";
 import { Canvas } from "./components/Canvas";
-import type { SceneSection } from "./components/ScenceNavigation";
+import type { SceneSection } from "./components/sceneNavigation";
 
 export default function Home() {
   const [section, setSection] = useState<SceneSection>("hero");

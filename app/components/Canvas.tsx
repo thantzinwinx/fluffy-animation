@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
-import { getSceneTarget, type SceneSection } from "./ScenceNavigation";
+import { getSceneTarget, type SceneSection } from "./sceneNavigation";
 import { getCharacterLayout, getCrowdLayout, getNextTitleLayout } from "./canvasLayout";
 import { shouldRunCanvas } from "./canvasRenderPolicy";
 import { resizeCanvasSurface } from "./canvasSurface";
@@ -331,9 +331,13 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
     };
 
     human.onload = startWhenReady;
+    human.onerror = startWhenReady;
     crewImage.onload = startWhenReady;
+    crewImage.onerror = startWhenReady;
     bubbles.onload = startWhenReady;
+    bubbles.onerror = startWhenReady;
     logo.onload = startWhenReady;
+    logo.onerror = startWhenReady;
     human.src = "/assets/human.webp";
     crewImage.src = "/assets/crew.webp";
     bubbles.src = "/assets/bubbles.webp";

@@ -3,7 +3,7 @@
 import Image from "next/image";
 import { useRef } from "react";
 import { gsap } from "@/lib/gsap";
-import type { SceneSection } from "./ScenceNavigation";
+import type { SceneSection } from "./sceneNavigation";
 
 const FOCUS_RING =
   "focus-visible:outline-[3px] focus-visible:outline-coral focus-visible:outline-offset-[5px]";
