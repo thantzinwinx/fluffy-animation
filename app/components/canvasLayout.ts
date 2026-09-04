@@ -20,6 +20,12 @@ export type CrowdLayout = {
   tileSize: number;
 };
 
+export type NextTitleLayout = {
+  logoWidth: number;
+  logoY: number;
+  taglineY: number;
+};
+
 const HERO_HUMAN_Y = { compact: 0.99, desktop: 1.02 } as const;
 const NEXT_HUMAN_Y = { compact: 0.6, desktop: 0.58 } as const;
 const TABLET_LAYOUT_WIDTH = 768;
@@ -54,6 +60,23 @@ export function getCrowdLayout(width: number, height: number): CrowdLayout {
     stageHeight,
     stageWidth,
     tileSize: (stageWidth / columns) * (compact ? 2.42 : 2.34),
+  };
+}
+
+export function getNextTitleLayout(
+  width: number,
+  height: number,
+  compact: boolean,
+): NextTitleLayout {
+  const mobileLogoWidth =
+    width < 375
+      ? width * (432 / 375)
+      : Math.min(width * 1.35, Math.max(width * 0.84, 432));
+
+  return {
+    logoWidth: Math.min(compact ? mobileLogoWidth : width * 0.78, 1120),
+    logoY: height * (compact ? 0.42 : 0.38),
+    taglineY: height * (compact ? 0.51 : 0.49),
   };
 }
 

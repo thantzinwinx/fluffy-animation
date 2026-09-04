@@ -1,15 +1,17 @@
 "use client";
 
 import Image from "next/image";
+import type { SceneSection } from "./ScenceNavigation";
 
 const FOCUS_RING =
   "focus-visible:outline-[3px] focus-visible:outline-coral focus-visible:outline-offset-[5px]";
 
 type SiteChromeProps = {
   revealed: boolean;
+  section: SceneSection;
 };
 
-export function SiteChrome({ revealed }: SiteChromeProps) {
+export function SiteChrome({ revealed, section }: SiteChromeProps) {
   return (
     <div
       className={`pointer-events-none fixed inset-0 z-30 transition-opacity duration-700 ${
@@ -19,8 +21,12 @@ export function SiteChrome({ revealed }: SiteChromeProps) {
       <header className="absolute inset-x-0 top-0 flex items-start justify-between p-[clamp(1.4rem,3vw,2.8rem)] max-[47.99rem]:p-5">
         <a
           href="#hero"
-          aria-label="Fluffy Hugs"
-          className="pointer-events-auto block w-[clamp(12rem,24vw,23rem)] focus-visible:outline-3 focus-visible:outline-coral focus-visible:outline-offset-5 max-[47.99rem]:w-[min(54vw,13rem)]"
+          aria-label="Fluffy Hugs, back to top"
+          className={`block w-[clamp(12rem,24vw,23rem)] transition-[opacity,transform] duration-[450ms] [transition-timing-function:ease] motion-reduce:duration-200 motion-reduce:delay-0 max-[47.99rem]:w-[min(54vw,13rem)] ${
+            section === "next"
+              ? "pointer-events-none -translate-y-3.5 opacity-0"
+              : "pointer-events-auto"
+          } focus-visible:outline-3 focus-visible:outline-coral focus-visible:outline-offset-5`}
         >
           <Image
             src="/assets/logo.webp"

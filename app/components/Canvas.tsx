@@ -71,7 +71,11 @@ function drawImageCentered(
 }
 
 
-export function Canvas() {
+type CanvasProps = {
+  onSectionChange?: (section: SceneSection) => void;
+};
+
+export function Canvas({ onSectionChange }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sectionRef = useRef<SceneSection>("hero");
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -84,6 +88,7 @@ export function Canvas() {
       if (timelineRef.current?.isActive()) return;
       const target = getSceneTarget(sectionRef.current);
       sectionRef.current = target;
+      onSectionChange?.(target);
 
       if (target === "next") {
         timelineRef.current = gsap
@@ -138,7 +143,7 @@ export function Canvas() {
       timelineRef.current?.kill();
       timelineRef.current = null;
     };
-  }, []);
+  }, [onSectionChange]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
