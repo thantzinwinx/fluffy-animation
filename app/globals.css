@@ -1,26 +1,52 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --navy: #0b3f96;
+  --coral: #ffbdac;
+  --coral-light: #ffd8cd;
+  --blue: #8ca9ed;
+  --blue-light: #c0e3fb;
+  --line: rgba(11, 63, 150, 0.22);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-navy: var(--navy);
+  --color-coral: var(--coral);
+  --color-coral-light: var(--coral-light);
+  --color-blue: var(--blue);
+  --color-blue-light: var(--blue-light);
+
+  --font-display: var(--font-display);
+  --font-body: var(--font-body);
+
+  /* manual 3-breakpoint system: mobile (default) / tablet / desktop */
+  --breakpoint-tablet: 48rem; /* 768px */
+  --breakpoint-desktop: 80rem; /* 1280px */
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html,
+body {
+  height: 100%;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: #fff;
+  color: var(--navy);
+  margin: 0;
+  min-width: 320px;
+}
+
+body[data-loading="true"] {
+  overflow: hidden;
+}
+
+::selection {
+  background: var(--coral);
+  color: var(--navy);
+}
+
+a {
+  color: inherit;
 }
