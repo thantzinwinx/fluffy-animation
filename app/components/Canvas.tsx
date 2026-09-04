@@ -2,6 +2,8 @@
 
 import { useEffect, useRef } from "react";
 
+const BUBBLE_LOOP_MS = 7000;
+
 type CrowdTile = {
   x: number;
   y: number;
@@ -43,6 +45,7 @@ export function Canvas() {
 
     const human = new Image();
     const crewImage = new Image();
+    const bubbles = new Image();
 
     let crowd: CrowdTile[] = [];
     let width = 0;
@@ -73,6 +76,28 @@ export function Canvas() {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.fillStyle = "#fff";
       context.fillRect(0, 0, width, height);
+
+      const compact = width < 720 || height > width * 1.25;
+      const bubbleWidth = compact
+        ? Math.max(width * 1.55, height * 0.78)
+        : Math.max(width, height * 0.9);
+      const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
+      const bubbleX = (width - bubbleWidth) / 2;
+      const bubbleY = -((elapsed / BUBBLE_LOOP_MS) * bubbleHeight) % bubbleHeight;
+
+      if (bubbles.naturalWidth) {
+        context.save();
+        context.globalAlpha = 1;
+        context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+        context.drawImage(
+          bubbles,
+          bubbleX,
+          bubbleY + bubbleHeight,
+          bubbleWidth,
+          bubbleHeight,
+        );
+        context.restore();
+      }
 
       drawCrowd("back", elapsed);
 
@@ -116,15 +141,17 @@ export function Canvas() {
 
     const startWhenReady = () => {
       readyImages += 1;
-      if (readyImages !== 2) return;
+      if (readyImages !== 3) return;
       resize();
       frame = window.requestAnimationFrame(draw);
     };
 
     human.onload = startWhenReady;
     crewImage.onload = startWhenReady;
+    bubbles.onload = startWhenReady;
     human.src = "/assets/human.webp";
     crewImage.src = "/assets/crew.webp";
+    bubbles.src = "/assets/bubbles.webp";
     window.addEventListener("resize", resize);
     resize();
 
