@@ -2,6 +2,36 @@
 
 import { useEffect, useRef } from "react";
 
+type CrowdTile = {
+  x: number;
+  y: number;
+  size: number;
+  layer: "back" | "front";
+  phase: number;
+};
+
+function buildCrowd(width: number, height: number): CrowdTile[] {
+  const compact = width < 720 || height > width * 1.25;
+  const tileSize = compact
+    ? Math.max(86, width * 0.28)
+    : Math.max(110, width * 0.12);
+  const columns = Math.ceil(width / tileSize) + 2;
+  const rows = compact ? 3 : 2;
+
+  return Array.from({ length: columns * rows }, (_, index) => {
+    const column = index % columns;
+    const row = Math.floor(index / columns);
+    return {
+      x: (column - 1) * tileSize + tileSize / 2,
+      y: height * (compact ? 0.74 : 0.78) + row * tileSize * 0.52,
+      size: tileSize,
+      layer: row === 0 ? "back" : "front",
+      phase: index * 0.55,
+    };
+  });
+}
+
+
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -12,30 +42,64 @@ export function Canvas() {
     if (!context) return;
 
     const human = new Image();
-    human.src = "/assets/human.webp";
+    const crewImage = new Image();
 
+    let crowd: CrowdTile[] = [];
     let width = 0;
     let height = 0;
     let dpr = 1;
+    let frame = 0;
+    let readyImages = 0;
+
+    const drawCrowd = (layer: CrowdTile["layer"], elapsed: number) => {
+      if (!crewImage.naturalWidth) return;
+
+      crowd
+        .filter((tile) => tile.layer === layer)
+        .forEach((tile) => {
+          const bounce =
+            Math.sin(elapsed * 0.0025 + tile.phase) * tile.size * 0.035;
+          context.drawImage(
+            crewImage,
+            tile.x - tile.size / 2,
+            tile.y - tile.size / 2 + bounce,
+            tile.size,
+            tile.size,
+          );
+        });
+    };
 
     const paint = (elapsed: number) => {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.fillStyle = "#fff";
       context.fillRect(0, 0, width, height);
 
-      if (!human.naturalWidth) return;
-      const imageHeight = Math.min(height * 1.72, width * 1.34);
-      const imageWidth = imageHeight * (human.naturalWidth / human.naturalHeight);
-      const bounceAngle = (elapsed / 800) * Math.PI * 2;
-      const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
-      const bounce = (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
-      context.drawImage(
-        human,
-        (width - imageWidth) / 2,
-        height * 1.02 - imageHeight / 2 + bounce,
-        imageWidth,
-        imageHeight,
-      );
+      drawCrowd("back", elapsed);
+
+      if (human.naturalWidth) {
+        const imageHeight = Math.min(height * 1.72, width * 1.34);
+        const imageWidth =
+          imageHeight * (human.naturalWidth / human.naturalHeight);
+        const bounceAngle = (elapsed / 800) * Math.PI * 2;
+        const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
+        const bounce =
+          (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
+
+        context.drawImage(
+          human,
+          (width - imageWidth) / 2,
+          height * 1.02 - imageHeight / 2 + bounce,
+          imageWidth,
+          imageHeight,
+        );
+      }
+
+      drawCrowd("front", elapsed);
+    };
+
+    const draw = (elapsed: number) => {
+      paint(elapsed);
+      frame = window.requestAnimationFrame(draw);
     };
 
     const resize = () => {
@@ -46,19 +110,21 @@ export function Canvas() {
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
+      crowd = buildCrowd(width, height);
       paint(performance.now());
     };
 
-    let frame = 0;
-    const draw = (elapsed: number) => {
-      paint(elapsed);
-      frame = window.requestAnimationFrame(draw);
-    };
-
-    human.onload = () => {
+    const startWhenReady = () => {
+      readyImages += 1;
+      if (readyImages !== 2) return;
       resize();
       frame = window.requestAnimationFrame(draw);
     };
+
+    human.onload = startWhenReady;
+    crewImage.onload = startWhenReady;
+    human.src = "/assets/human.webp";
+    crewImage.src = "/assets/crew.webp";
     window.addEventListener("resize", resize);
     resize();
 
@@ -74,8 +140,15 @@ export function Canvas() {
         ref={canvasRef}
         className="block h-full w-full touch-pan-y"
         role="img"
-        aria-label="A Fluffy Hugs character"
+        aria-label="A lively crowd of Fluffy Hugs characters"
       />
+      <section
+        id="next-section"
+        className="pointer-events-none absolute inset-0"
+        aria-label="Float together"
+      >
+        <h2 className="sr-only">Fluffy Hugs float together</h2>
+      </section>
     </main>
   );
 }
