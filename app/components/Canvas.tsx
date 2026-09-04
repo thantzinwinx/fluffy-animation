@@ -163,11 +163,15 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
     const crewImage = new Image();
     const bubbles = new Image();
     const logo = new Image();
+    const bodyFontFamily =
+      getComputedStyle(document.documentElement).getPropertyValue("--font-body").trim() ||
+      "sans-serif";
 
     let crowd: CrowdTile[] = [];
     let width = 0;
     let height = 0;
     let dpr = 1;
+    let compact = false;
     let frame = 0;
     let readyImages = 0;
 
@@ -202,8 +206,6 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.fillStyle = "#fff";
       context.fillRect(0, 0, width, height);
-
-      const compact = width < 720 || height > width * 1.25;
 
       if (bubbles.naturalWidth && stateRef.current.nextAlpha > 0.001) {
         context.save();
@@ -241,7 +243,7 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
         context.save();
         context.globalAlpha = stateRef.current.logoAlpha * stateRef.current.nextAlpha;
         drawImageCentered(context, logo, width / 2, titleLayout.logoY, logoWidth, logoHeight);
-        context.font = `700 ${compact ? 10 : 12}px var(--font-body), sans-serif`;
+        context.font = `700 ${compact ? 10 : 12}px ${bodyFontFamily}, sans-serif`;
         context.fillStyle = "#0b3f96";
         context.textAlign = "center";
         context.letterSpacing = compact ? "3px" : "5px";
@@ -280,7 +282,8 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
     const resize = () => {
       width = window.innerWidth;
       height = window.innerHeight;
-      dpr = Math.min(window.devicePixelRatio || 1, 2);
+      compact = width < 768;
+      dpr = Math.min(window.devicePixelRatio || 1, compact ? 1.35 : 1.75);
       crowd = buildCrowd(width, height);
       resizeCanvasSurface(canvas, { width, height, dpr }, () => paint(performance.now()));
     };
