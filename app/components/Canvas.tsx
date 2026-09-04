@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { gsap } from "@/lib/gsap";
+import { getSceneTarget, type SceneSection } from "./ScenceNavigation";
 
 const BUBBLE_LOOP_MS = 7000;
 
@@ -36,6 +38,72 @@ function buildCrowd(width: number, height: number): CrowdTile[] {
 
 export function Canvas() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const sectionRef = useRef<SceneSection>("hero");
+  const timelineRef = useRef<gsap.core.Timeline | null>(null);
+  const stateRef = useRef({ crowdDrop: 0, characterProgress: 0, nextAlpha: 0 });
+
+  useEffect(() => {
+    const state = stateRef.current;
+
+    const navigate = () => {
+      if (timelineRef.current?.isActive()) return;
+      const target = getSceneTarget(sectionRef.current);
+      sectionRef.current = target;
+
+      if (target === "next") {
+        timelineRef.current = gsap
+          .timeline()
+          .to(state, { crowdDrop: 1, duration: 1.2, ease: "power3.inOut" }, 0)
+          .to(state, { characterProgress: 1, duration: 1.05, ease: "power2.inOut" }, 0.12)
+          .to(state, { nextAlpha: 1, duration: 0.32 }, 0.38);
+        return;
+      }
+
+      timelineRef.current = gsap
+        .timeline()
+        .to(state, { crowdDrop: 0, duration: 1.2, ease: "power3.inOut" }, 0)
+        .to(state, { characterProgress: 0, duration: 1.05, ease: "power2.inOut" }, 0.05)
+        .to(state, { nextAlpha: 0, duration: 0.35 }, 0.28);
+    };
+
+    const onWheel = (event: WheelEvent) => {
+      event.preventDefault();
+      if (Math.abs(event.deltaY) < 8) return;
+      navigate();
+    };
+
+    let touchY = 0;
+    const onTouchStart = (event: TouchEvent) => {
+      touchY = event.touches[0]?.clientY ?? 0;
+    };
+    const onTouchMove = (event: TouchEvent) => {
+      event.preventDefault();
+      const nextY = event.touches[0]?.clientY ?? touchY;
+      if (Math.abs(touchY - nextY) < 28) return;
+      touchY = nextY;
+      navigate();
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      const keys = ["ArrowDown", "ArrowUp", "PageDown", "PageUp", " "];
+      if (!keys.includes(event.key)) return;
+      event.preventDefault();
+      navigate();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false });
+    window.addEventListener("touchstart", onTouchStart, { passive: true });
+    window.addEventListener("touchmove", onTouchMove, { passive: false });
+    window.addEventListener("keydown", onKeyDown);
+
+    return () => {
+      window.removeEventListener("wheel", onWheel);
+      window.removeEventListener("touchstart", onTouchStart);
+      window.removeEventListener("touchmove", onTouchMove);
+      window.removeEventListener("keydown", onKeyDown);
+      timelineRef.current?.kill();
+      timelineRef.current = null;
+    };
+  }, []);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -56,7 +124,11 @@ export function Canvas() {
 
     const drawCrowd = (layer: CrowdTile["layer"], elapsed: number) => {
       if (!crewImage.naturalWidth) return;
+      const drop = stateRef.current.crowdDrop;
+      if (drop >= 1) return;
 
+      context.save();
+      context.globalAlpha = 1 - drop;
       crowd
         .filter((tile) => tile.layer === layer)
         .forEach((tile) => {
@@ -65,11 +137,12 @@ export function Canvas() {
           context.drawImage(
             crewImage,
             tile.x - tile.size / 2,
-            tile.y - tile.size / 2 + bounce,
+            tile.y - tile.size / 2 + bounce + drop * tile.size * 1.4,
             tile.size,
             tile.size,
           );
         });
+      context.restore();
     };
 
     const paint = (elapsed: number) => {
@@ -85,9 +158,9 @@ export function Canvas() {
       const bubbleX = (width - bubbleWidth) / 2;
       const bubbleY = -((elapsed / BUBBLE_LOOP_MS) * bubbleHeight) % bubbleHeight;
 
-      if (bubbles.naturalWidth) {
+      if (bubbles.naturalWidth && stateRef.current.nextAlpha > 0.001) {
         context.save();
-        context.globalAlpha = 1;
+        context.globalAlpha = stateRef.current.nextAlpha;
         context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
         context.drawImage(
           bubbles,
@@ -102,6 +175,7 @@ export function Canvas() {
       drawCrowd("back", elapsed);
 
       if (human.naturalWidth) {
+        const progress = stateRef.current.characterProgress;
         const imageHeight = Math.min(height * 1.72, width * 1.34);
         const imageWidth =
           imageHeight * (human.naturalWidth / human.naturalHeight);
@@ -109,14 +183,16 @@ export function Canvas() {
         const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
         const bounce =
           (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
+        const heroY = height * 1.02 - imageHeight / 2 + bounce;
+        const nextY = height / 2;
+        const centerY = heroY + (nextY - heroY) * progress;
+        const centerX = width / 2;
 
-        context.drawImage(
-          human,
-          (width - imageWidth) / 2,
-          height * 1.02 - imageHeight / 2 + bounce,
-          imageWidth,
-          imageHeight,
-        );
+        context.save();
+        context.translate(centerX, centerY);
+        context.rotate((-Math.PI / 2) * progress);
+        context.drawImage(human, -imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight);
+        context.restore();
       }
 
       drawCrowd("front", elapsed);
