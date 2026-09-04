@@ -78,9 +78,10 @@ function drawImageCentered(
 
 type CanvasProps = {
   onSectionChange?: (section: SceneSection) => void;
+  onReady?: () => void;
 };
 
-export function Canvas({ onSectionChange }: CanvasProps) {
+export function Canvas({ onSectionChange, onReady }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sectionRef = useRef<SceneSection>("hero");
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
@@ -289,6 +290,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
       if (readyImages !== 4) return;
       resize();
       frame = window.requestAnimationFrame(draw);
+      onReady?.();
     };
 
     const onVisibilityChange = () => {
@@ -319,7 +321,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
       window.removeEventListener("resize", resize);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, []);
+  }, [onReady]);
 
   return (
     <main id="hero" className="relative h-svh min-h-0 bg-white">
