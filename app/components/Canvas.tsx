@@ -18,7 +18,7 @@ export function Canvas() {
     let height = 0;
     let dpr = 1;
 
-    const paint = () => {
+    const paint = (elapsed: number) => {
       context.setTransform(dpr, 0, 0, dpr, 0, 0);
       context.fillStyle = "#fff";
       context.fillRect(0, 0, width, height);
@@ -26,10 +26,13 @@ export function Canvas() {
       if (!human.naturalWidth) return;
       const imageHeight = Math.min(height * 1.72, width * 1.34);
       const imageWidth = imageHeight * (human.naturalWidth / human.naturalHeight);
+      const bounceAngle = (elapsed / 800) * Math.PI * 2;
+      const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
+      const bounce = (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
       context.drawImage(
         human,
         (width - imageWidth) / 2,
-        height * 1.02 - imageHeight / 2,
+        height * 1.02 - imageHeight / 2 + bounce,
         imageWidth,
         imageHeight,
       );
@@ -43,13 +46,26 @@ export function Canvas() {
       canvas.height = Math.round(height * dpr);
       canvas.style.width = `${width}px`;
       canvas.style.height = `${height}px`;
-      paint();
+      paint(performance.now());
     };
 
-    human.onload = resize;
+    let frame = 0;
+    const draw = (elapsed: number) => {
+      paint(elapsed);
+      frame = window.requestAnimationFrame(draw);
+    };
+
+    human.onload = () => {
+      resize();
+      frame = window.requestAnimationFrame(draw);
+    };
     window.addEventListener("resize", resize);
     resize();
-    return () => window.removeEventListener("resize", resize);
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", resize);
+    };
   }, []);
 
   return (
