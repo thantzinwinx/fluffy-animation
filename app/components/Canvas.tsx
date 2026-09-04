@@ -6,6 +6,7 @@ import type { SceneSection } from "./sceneNavigation";
 import { useCanvasInput } from "./useCanvasInput";
 import { useCanvasDraw } from "./useCanvasDraw";
 import { useCanvasAssets } from "@/lib/useCanvasAssets";
+import { useReducedMotion } from "@/lib/useReducedMotion";
 
 type CanvasProps = {
   onSectionChange?: (section: SceneSection) => void;
@@ -17,9 +18,10 @@ export function Canvas({ onSectionChange, onReady }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const stateRef = useRef(createCanvasState());
   const assets = useCanvasAssets();
+  const reducedMotion = useReducedMotion();
 
-  useCanvasInput({ stateRef, onSectionChange });
-  useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady });
+  useCanvasInput({ stateRef, onSectionChange, reducedMotion });
+  useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady, reducedMotion });
 
   return (
     <main ref={rootRef} id="hero" className="relative h-svh min-h-0 bg-white">

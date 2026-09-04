@@ -80,9 +80,17 @@ type UseCanvasDrawArgs = {
   assets: CanvasAssets | null;
   stateRef: RefObject<CanvasState>;
   onReady?: () => void;
+  reducedMotion: boolean;
 };
 
-export function useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady }: UseCanvasDrawArgs) {
+export function useCanvasDraw({
+  canvasRef,
+  rootRef,
+  assets,
+  stateRef,
+  onReady,
+  reducedMotion,
+}: UseCanvasDrawArgs) {
   useEffect(() => {
     const canvas = canvasRef.current;
     const root = rootRef.current;
@@ -100,7 +108,7 @@ export function useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady }:
     const drawCrowdTile = (tile: CrowdTile, elapsed: number, dropProgress: number) => {
       if (!assets) return;
       const bounceAngle = (elapsed / 800) * Math.PI * 2 + tile.bounceLevel * (Math.PI / 2);
-      const bounce = (Math.cos(bounceAngle) - 1) * 10;
+      const bounce = reducedMotion ? 0 : (Math.cos(bounceAngle) - 1) * 10;
       const staggerWindow = 0.1;
       const localDrop = Math.max(
         0,
@@ -143,10 +151,9 @@ export function useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady }:
         BUBBLE_TRACKS.forEach((track) => {
           const bubbleX = width * track.x - bubbleWidth / 2;
           const phaseOffset = track.phase * bubbleHeight;
-          const bubbleY = -(
-            ((elapsed / BUBBLE_LOOP_MS) * bubbleHeight + phaseOffset) %
-            bubbleHeight
-          );
+          const bubbleY = reducedMotion
+            ? -phaseOffset
+            : -(((elapsed / BUBBLE_LOOP_MS) * bubbleHeight + phaseOffset) % bubbleHeight);
           context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
           context.drawImage(bubbles, bubbleX, bubbleY + bubbleHeight, bubbleWidth, bubbleHeight);
         });
@@ -172,7 +179,7 @@ export function useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady }:
         const imageWidth = imageHeight * (human.naturalWidth / human.naturalHeight);
         const bounceAngle = (elapsed / 800) * Math.PI * 2;
         const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
-        const bounce = (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
+        const bounce = reducedMotion ? 0 : (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
 
         context.save();
         context.translate(characterLayout.x, characterLayout.y + bounce);
@@ -251,5 +258,5 @@ export function useCanvasDraw({ canvasRef, rootRef, assets, stateRef, onReady }:
       document.removeEventListener("visibilitychange", onVisibilityChange);
       observer.disconnect();
     };
-  }, [assets, canvasRef, onReady, rootRef, stateRef]);
+  }, [assets, canvasRef, onReady, reducedMotion, rootRef, stateRef]);
 }

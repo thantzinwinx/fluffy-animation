@@ -6,20 +6,35 @@ import type { CanvasState } from "./canvasState";
 type UseCanvasInputArgs = {
   stateRef: RefObject<CanvasState>;
   onSectionChange?: (section: SceneSection) => void;
+  reducedMotion: boolean;
 };
 
-export function useCanvasInput({ stateRef, onSectionChange }: UseCanvasInputArgs) {
+export function useCanvasInput({ stateRef, onSectionChange, reducedMotion }: UseCanvasInputArgs) {
   const sectionRef = useRef<SceneSection>("hero");
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
 
   useEffect(() => {
     const state = stateRef.current;
 
+    const settleState = (target: SceneSection) => {
+      Object.assign(
+        state,
+        target === "hero"
+          ? { crowdDrop: 0, characterProgress: 0, nextAlpha: 0, logoAlpha: 0 }
+          : { crowdDrop: 1, characterProgress: 1, nextAlpha: 1, logoAlpha: 1 },
+      );
+    };
+
     const navigate = () => {
       if (timelineRef.current?.isActive()) return;
       const target = getSceneTarget(sectionRef.current);
       sectionRef.current = target;
       onSectionChange?.(target);
+
+      if (reducedMotion) {
+        settleState(target);
+        return;
+      }
 
       if (target === "next") {
         timelineRef.current = gsap
@@ -76,5 +91,5 @@ export function useCanvasInput({ stateRef, onSectionChange }: UseCanvasInputArgs
       timelineRef.current?.kill();
       timelineRef.current = null;
     };
-  }, [onSectionChange, stateRef]);
+  }, [onSectionChange, reducedMotion, stateRef]);
 }
