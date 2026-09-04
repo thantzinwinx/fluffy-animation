@@ -1,15 +1,56 @@
 "use client";
 
 import Image from "next/image";
+import { useRef } from "react";
+import { gsap } from "@/lib/gsap";
 import type { SceneSection } from "./ScenceNavigation";
 
 const FOCUS_RING =
   "focus-visible:outline-[3px] focus-visible:outline-coral focus-visible:outline-offset-[5px]";
+const SOCIAL_LINK_STYLES =
+  "block size-[clamp(2.5rem,3.5vw,3.25rem)] rounded-full focus-visible:outline-3 focus-visible:outline-coral focus-visible:outline-offset-5";
+
+const SOCIALS = [
+  { name: "Discord", src: "/assets/discord.svg", href: "https://discord.com" },
+  { name: "OpenSea", src: "/assets/opensea.svg", href: "https://opensea.io" },
+  { name: "X / Twitter", src: "/assets/twitter.svg", href: "https://x.com" },
+] as const;
 
 type SiteChromeProps = {
   revealed: boolean;
   section: SceneSection;
 };
+
+function SocialLink({ social }: { social: (typeof SOCIALS)[number] }) {
+  const linkRef = useRef<HTMLAnchorElement>(null);
+
+  const scaleTo = (scale: number) => {
+    gsap.to(linkRef.current, {
+      scale,
+      y: scale < 1 ? 2 : 0,
+      duration: 0.28,
+      ease: "power2.out",
+      overwrite: true,
+    });
+  };
+
+  return (
+    <a
+      ref={linkRef}
+      href={social.href}
+      target="_blank"
+      rel="noreferrer"
+      aria-label={social.name}
+      className={`${SOCIAL_LINK_STYLES} ${FOCUS_RING}`}
+      onMouseEnter={() => scaleTo(0.9)}
+      onMouseLeave={() => scaleTo(1)}
+      onFocus={() => scaleTo(0.9)}
+      onBlur={() => scaleTo(1)}
+    >
+      <Image src={social.src} alt="" width={52} height={52} className="size-full" />
+    </a>
+  );
+}
 
 export function SiteChrome({ revealed, section }: SiteChromeProps) {
   return (
@@ -43,21 +84,8 @@ export function SiteChrome({ revealed, section }: SiteChromeProps) {
           aria-label="Social links"
           className="pointer-events-auto flex gap-3 pb-[clamp(1.5rem,3vw,2.7rem)]"
         >
-          {[
-            ["Discord", "/assets/discord.svg", "https://discord.com"],
-            ["OpenSea", "/assets/opensea.svg", "https://opensea.io"],
-            ["X / Twitter", "/assets/twitter.svg", "https://x.com"],
-          ].map(([name, src, href]) => (
-            <a
-              key={name}
-              href={href}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={name}
-              className="block size-[clamp(2.5rem,3.5vw,3.25rem)] rounded-full focus-visible:outline-3 focus-visible:outline-coral focus-visible:outline-offset-5"
-            >
-              <Image src={src} alt="" width={52} height={52} className="size-full" />
-            </a>
+          {SOCIALS.map((social) => (
+            <SocialLink key={social.name} social={social} />
           ))}
         </nav>
         <a

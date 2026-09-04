@@ -3,11 +3,16 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
 import { getSceneTarget, type SceneSection } from "./ScenceNavigation";
-import { getCharacterLayout, getCrowdLayout } from "./canvasLayout";
+import { getCharacterLayout, getCrowdLayout, getNextTitleLayout } from "./canvasLayout";
 import { shouldRunCanvas } from "./canvasRenderPolicy";
 import { resizeCanvasSurface } from "./canvasSurface";
 
 const BUBBLE_LOOP_MS = 7000;
+const BUBBLE_TRACKS = [
+  { x: 0, phase: 0 },
+  { x: 0.5, phase: 0.34 },
+  { x: 1, phase: 0.68 },
+] as const;
 
 type CrowdTile = {
   x: number;
@@ -79,7 +84,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const sectionRef = useRef<SceneSection>("hero");
   const timelineRef = useRef<gsap.core.Timeline | null>(null);
-  const stateRef = useRef({ crowdDrop: 0, characterProgress: 0, nextAlpha: 0 });
+  const stateRef = useRef({ crowdDrop: 0, characterProgress: 0, nextAlpha: 0, logoAlpha: 0 });
 
   useEffect(() => {
     const state = stateRef.current;
@@ -95,7 +100,8 @@ export function Canvas({ onSectionChange }: CanvasProps) {
           .timeline()
           .to(state, { crowdDrop: 1, duration: 1.2, ease: "power3.inOut" }, 0)
           .to(state, { characterProgress: 1, duration: 1.05, ease: "power2.inOut" }, 0.12)
-          .to(state, { nextAlpha: 1, duration: 0.32 }, 0.38);
+          .to(state, { nextAlpha: 1, duration: 0.32 }, 0.38)
+          .to(state, { logoAlpha: 1, duration: 0.34, ease: "power2.out" }, 0.6);
         return;
       }
 
@@ -103,6 +109,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
         .timeline()
         .to(state, { crowdDrop: 0, duration: 1.2, ease: "power3.inOut" }, 0)
         .to(state, { characterProgress: 0, duration: 1.05, ease: "power2.inOut" }, 0.05)
+        .to(state, { logoAlpha: 0, duration: 0.3, ease: "power1.out" }, 0)
         .to(state, { nextAlpha: 0, duration: 0.35 }, 0.28);
     };
 
@@ -154,6 +161,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
     const human = new Image();
     const crewImage = new Image();
     const bubbles = new Image();
+    const logo = new Image();
 
     let crowd: CrowdTile[] = [];
     let width = 0;
@@ -195,24 +203,47 @@ export function Canvas({ onSectionChange }: CanvasProps) {
       context.fillRect(0, 0, width, height);
 
       const compact = width < 720 || height > width * 1.25;
-      const bubbleWidth = compact
-        ? Math.max(width * 1.55, height * 0.78)
-        : Math.max(width, height * 0.9);
-      const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
-      const bubbleX = (width - bubbleWidth) / 2;
-      const bubbleY = -((elapsed / BUBBLE_LOOP_MS) * bubbleHeight) % bubbleHeight;
 
       if (bubbles.naturalWidth && stateRef.current.nextAlpha > 0.001) {
         context.save();
         context.globalAlpha = stateRef.current.nextAlpha;
-        context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
-        context.drawImage(
-          bubbles,
-          bubbleX,
-          bubbleY + bubbleHeight,
-          bubbleWidth,
-          bubbleHeight,
-        );
+
+        if (compact) {
+          const bubbleWidth = Math.max(width * 1.55, height * 0.78);
+          const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
+          const bubbleX = (width - bubbleWidth) / 2;
+          const bubbleY = -((elapsed / BUBBLE_LOOP_MS) * bubbleHeight) % bubbleHeight;
+          context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+          context.drawImage(bubbles, bubbleX, bubbleY + bubbleHeight, bubbleWidth, bubbleHeight);
+        } else {
+          const bubbleWidth = Math.max(680, Math.min(width * 0.5, 980));
+          const bubbleHeight = bubbleWidth * (bubbles.naturalHeight / bubbles.naturalWidth);
+          BUBBLE_TRACKS.forEach((track) => {
+            const bubbleX = width * track.x - bubbleWidth / 2;
+            const phaseOffset = track.phase * bubbleHeight;
+            const bubbleY = -(
+              ((elapsed / BUBBLE_LOOP_MS) * bubbleHeight + phaseOffset) %
+              bubbleHeight
+            );
+            context.drawImage(bubbles, bubbleX, bubbleY, bubbleWidth, bubbleHeight);
+            context.drawImage(bubbles, bubbleX, bubbleY + bubbleHeight, bubbleWidth, bubbleHeight);
+          });
+        }
+
+        context.restore();
+      }
+
+      if (stateRef.current.logoAlpha > 0.001 && logo.naturalWidth) {
+        const titleLayout = getNextTitleLayout(width, height, compact);
+        const logoWidth = titleLayout.logoWidth;
+        const logoHeight = logoWidth * (logo.naturalHeight / logo.naturalWidth);
+        context.save();
+        context.globalAlpha = stateRef.current.logoAlpha * stateRef.current.nextAlpha;
+        drawImageCentered(context, logo, width / 2, titleLayout.logoY, logoWidth, logoHeight);
+        context.font = `700 ${compact ? 10 : 12}px var(--font-body), sans-serif`;
+        context.fillStyle = "#0b3f96";
+        context.textAlign = "center";
+        context.letterSpacing = compact ? "3px" : "5px";
         context.restore();
       }
 
@@ -255,7 +286,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
 
     const startWhenReady = () => {
       readyImages += 1;
-      if (readyImages !== 3) return;
+      if (readyImages !== 4) return;
       resize();
       frame = window.requestAnimationFrame(draw);
     };
@@ -266,7 +297,7 @@ export function Canvas({ onSectionChange }: CanvasProps) {
         frame = 0;
         return;
       }
-      if (readyImages === 3 && !frame) {
+      if (readyImages === 4 && !frame) {
         frame = window.requestAnimationFrame(draw);
       }
     };
@@ -274,9 +305,11 @@ export function Canvas({ onSectionChange }: CanvasProps) {
     human.onload = startWhenReady;
     crewImage.onload = startWhenReady;
     bubbles.onload = startWhenReady;
+    logo.onload = startWhenReady;
     human.src = "/assets/human.webp";
     crewImage.src = "/assets/crew.webp";
     bubbles.src = "/assets/bubbles.webp";
+    logo.src = "/assets/logo.webp";
     window.addEventListener("resize", resize);
     document.addEventListener("visibilitychange", onVisibilityChange);
     resize();
