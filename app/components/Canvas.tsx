@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 import { gsap } from "@/lib/gsap";
 import { getSceneTarget, type SceneSection } from "./ScenceNavigation";
+import { getCharacterLayout, getCrowdLayout } from "./canvasLayout";
+import { shouldRunCanvas } from "./canvasRenderPolicy";
+import { resizeCanvasSurface } from "./canvasSurface";
 
 const BUBBLE_LOOP_MS = 7000;
 
@@ -10,29 +13,61 @@ type CrowdTile = {
   x: number;
   y: number;
   size: number;
+  rotation: number;
+  bounceLevel: number;
+  exitOrder: number;
   layer: "back" | "front";
-  phase: number;
+};
+
+const seeded = (seed: number) => {
+  const value = Math.sin(seed * 127.1) * 43758.5453;
+  return value - Math.floor(value);
 };
 
 function buildCrowd(width: number, height: number): CrowdTile[] {
-  const compact = width < 720 || height > width * 1.25;
-  const tileSize = compact
-    ? Math.max(86, width * 0.28)
-    : Math.max(110, width * 0.12);
-  const columns = Math.ceil(width / tileSize) + 2;
-  const rows = compact ? 3 : 2;
+  const { columns, rows, split, stageHeight, stageWidth, tileSize } = getCrowdLayout(
+    width,
+    height,
+  );
+  const tiles: CrowdTile[] = [];
+  let index = 0;
 
-  return Array.from({ length: columns * rows }, (_, index) => {
-    const column = index % columns;
-    const row = Math.floor(index / columns);
-    return {
-      x: (column - 1) * tileSize + tileSize / 2,
-      y: height * (compact ? 0.74 : 0.78) + row * tileSize * 0.52,
-      size: tileSize,
-      layer: row === 0 ? "back" : "front",
-      phase: index * 0.55,
-    };
-  });
+  for (let row = -2; row <= rows; row += 1) {
+    for (let column = -1; column <= columns; column += 1) {
+      const offset = Math.abs(row % 2) === 1 ? 0.5 : 0;
+      const x =
+        width / 2 +
+        ((column + offset + (seeded(index) - 0.5) * 0.16) / columns - 0.5) * stageWidth;
+      const y =
+        height / 2 +
+        (row / rows - 0.5) * stageHeight +
+        (seeded(index + 31) - 0.5) * stageHeight * 0.075;
+      tiles.push({
+        x,
+        y,
+        size: tileSize * (0.94 + seeded(index + 7) * 0.12),
+        rotation: (seeded(index + 13) - 0.5) * 0.14,
+        bounceLevel: Math.floor(seeded(index + 59) * 4),
+        exitOrder: seeded(index + 83),
+        layer: y >= split ? "front" : "back",
+      });
+      index += 1;
+    }
+  }
+
+  return tiles.sort((a, b) => a.y - b.y);
+}
+
+function drawImageCentered(
+  context: CanvasRenderingContext2D,
+  image: HTMLImageElement,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+) {
+  if (!image.naturalWidth) return;
+  context.drawImage(image, x - width / 2, y - height / 2, width, height);
 }
 
 
@@ -122,27 +157,31 @@ export function Canvas() {
     let frame = 0;
     let readyImages = 0;
 
-    const drawCrowd = (layer: CrowdTile["layer"], elapsed: number) => {
+    const drawCrowdTile = (tile: CrowdTile, elapsed: number, dropProgress: number) => {
       if (!crewImage.naturalWidth) return;
-      const drop = stateRef.current.crowdDrop;
-      if (drop >= 1) return;
+      const bounceAngle = (elapsed / 800) * Math.PI * 2 + tile.bounceLevel * (Math.PI / 2);
+      const bounce = (Math.cos(bounceAngle) - 1) * 10;
+      const staggerWindow = 0.1;
+      const localDrop = Math.max(
+        0,
+        Math.min(1, (dropProgress - tile.exitOrder * staggerWindow) / (1 - staggerWindow)),
+      );
+      const easedDrop = localDrop * localDrop * (3 - 2 * localDrop);
+      const exitX = width - tile.x + tile.size * (0.72 + tile.exitOrder * 0.2);
+      const exitY = height - tile.y + tile.size * (0.72 + tile.exitOrder * 0.2);
 
       context.save();
-      context.globalAlpha = 1 - drop;
+      context.translate(tile.x + exitX * easedDrop, tile.y + bounce + exitY * easedDrop);
+      context.rotate(tile.rotation + easedDrop * (tile.exitOrder - 0.5) * 0.18);
+      drawImageCentered(context, crewImage, 0, 0, tile.size, tile.size);
+      context.restore();
+    };
+
+    const drawCrowd = (layer: CrowdTile["layer"], elapsed: number) => {
+      const drop = stateRef.current.crowdDrop;
       crowd
         .filter((tile) => tile.layer === layer)
-        .forEach((tile) => {
-          const bounce =
-            Math.sin(elapsed * 0.0025 + tile.phase) * tile.size * 0.035;
-          context.drawImage(
-            crewImage,
-            tile.x - tile.size / 2,
-            tile.y - tile.size / 2 + bounce + drop * tile.size * 1.4,
-            tile.size,
-            tile.size,
-          );
-        });
-      context.restore();
+        .forEach((tile) => drawCrowdTile(tile, elapsed, drop));
     };
 
     const paint = (elapsed: number) => {
@@ -176,20 +215,17 @@ export function Canvas() {
 
       if (human.naturalWidth) {
         const progress = stateRef.current.characterProgress;
-        const imageHeight = Math.min(height * 1.72, width * 1.34);
+        const characterLayout = getCharacterLayout({ width, height, compact, progress });
+        const imageHeight = characterLayout.height;
         const imageWidth =
           imageHeight * (human.naturalWidth / human.naturalHeight);
         const bounceAngle = (elapsed / 800) * Math.PI * 2;
         const bounceTravel = Math.max(28, Math.min(height * 0.035, 42));
         const bounce =
           (Math.cos(bounceAngle) - 1) * (bounceTravel / 2);
-        const heroY = height * 1.02 - imageHeight / 2 + bounce;
-        const nextY = height / 2;
-        const centerY = heroY + (nextY - heroY) * progress;
-        const centerX = width / 2;
 
         context.save();
-        context.translate(centerX, centerY);
+        context.translate(characterLayout.x, characterLayout.y + bounce);
         context.rotate((-Math.PI / 2) * progress);
         context.drawImage(human, -imageWidth / 2, -imageHeight / 2, imageWidth, imageHeight);
         context.restore();
@@ -199,6 +235,7 @@ export function Canvas() {
     };
 
     const draw = (elapsed: number) => {
+      if (!shouldRunCanvas({ documentHidden: document.hidden, revealed: true })) return;
       paint(elapsed);
       frame = window.requestAnimationFrame(draw);
     };
@@ -207,12 +244,8 @@ export function Canvas() {
       width = window.innerWidth;
       height = window.innerHeight;
       dpr = Math.min(window.devicePixelRatio || 1, 2);
-      canvas.width = Math.round(width * dpr);
-      canvas.height = Math.round(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
       crowd = buildCrowd(width, height);
-      paint(performance.now());
+      resizeCanvasSurface(canvas, { width, height, dpr }, () => paint(performance.now()));
     };
 
     const startWhenReady = () => {
@@ -222,6 +255,17 @@ export function Canvas() {
       frame = window.requestAnimationFrame(draw);
     };
 
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        window.cancelAnimationFrame(frame);
+        frame = 0;
+        return;
+      }
+      if (readyImages === 3 && !frame) {
+        frame = window.requestAnimationFrame(draw);
+      }
+    };
+
     human.onload = startWhenReady;
     crewImage.onload = startWhenReady;
     bubbles.onload = startWhenReady;
@@ -229,11 +273,13 @@ export function Canvas() {
     crewImage.src = "/assets/crew.webp";
     bubbles.src = "/assets/bubbles.webp";
     window.addEventListener("resize", resize);
+    document.addEventListener("visibilitychange", onVisibilityChange);
     resize();
 
     return () => {
       window.cancelAnimationFrame(frame);
       window.removeEventListener("resize", resize);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
     };
   }, []);
 
